@@ -1,0 +1,9 @@
+python-dotenv
+pandas
+numpy
+sentence-transformers
+qdrant-client
+groq
+transformers
+torch
+tqdm
