@@ -32,12 +32,18 @@ class RAG:
         self.local_generator = pipeline("text-generation", model="distilgpt2", device=-1)
 
     def index(self, docs: List[str], batch_size: int = 64):
+        print(f"[RAG] Indexing {len(docs)} docs with batch_size={batch_size}")
         embeddings = self.embedder.embed(docs, batch_size=batch_size)
+        print(f"[RAG] Embeddings shape: {embeddings.shape}")
         self.db.upsert(docs, embeddings)
+        print("[RAG] Upsert complete.")
 
     def retrieve(self, query: str, top_k: int = 5):
+        print(f"[RAG] Retrieving top {top_k} docs for query: {query}")
         q_vec = self.embedder.embed([query])[0]
-        return self.db.search(q_vec, top_k=top_k)
+        results = self.db.search(q_vec, top_k=top_k)
+        print(f"[RAG] Retrieved {len(results)} docs.")
+        return results
 
     def generate_with_groq(self, prompt: str, model_name: str = "mixtral-8x7b-instruct"):
         if not self.groq_client:
@@ -56,11 +62,16 @@ class RAG:
         return out[0]["generated_text"]
 
     def answer(self, query: str, top_k: int = 5, use_groq_if_available: bool = True):
+        print(f"[RAG] Answering query: {query}")
         retrieved = self.retrieve(query, top_k=top_k)
+        print(f"[RAG] Context for answer:")
+        for i, doc in enumerate(retrieved):
+            print(f"  Doc {i+1}: {doc[:100]} ...")
         context = "\n\n".join(retrieved)
         prompt = f"Context:\n{context}\n\nUser Query: {query}\n\nAnswer concisely and cite which retrieved docs you used."
-
         if use_groq_if_available and self.groq_client:
+            print("[RAG] Using Groq for generation.")
             return self.generate_with_groq(prompt)
         else:
+            print("[RAG] Using local generator.")
             return self.generate_local(prompt)

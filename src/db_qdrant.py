@@ -18,15 +18,21 @@ class QdrantDB:
 
     def upsert(self, docs: List[str], embeddings: np.ndarray, batch_size: int = 64):
         """Upsert docs and embeddings to Qdrant in batches."""
+        print(f"[QdrantDB] Upserting {len(docs)} docs in batches of {batch_size}")
         points = []
         for idx, (doc, emb) in enumerate(zip(docs, embeddings)):
             points.append(models.PointStruct(id=idx, vector=emb.tolist(), payload={"text": doc}))
             if len(points) >= batch_size:
+                print(f"[QdrantDB] Upserting batch ending at doc {idx+1}")
                 self.client.upsert(collection_name=self.collection_name, points=points)
                 points = []
         if points:
+            print(f"[QdrantDB] Upserting final batch of {len(points)} docs")
             self.client.upsert(collection_name=self.collection_name, points=points)
+        print("[QdrantDB] Upsert complete.")
 
     def search(self, query_vector: np.ndarray, top_k: int = 5):
+        print(f"[QdrantDB] Searching for top {top_k} docs.")
         hits = self.client.search(collection_name=self.collection_name, query_vector=query_vector.tolist(), limit=top_k)
+        print(f"[QdrantDB] Found {len(hits)} hits.")
         return [r.payload["text"] for r in hits]
