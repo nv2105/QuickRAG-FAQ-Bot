@@ -100,4 +100,4 @@ Final Year CSE Student | Aspiring Data Analyst
 
 ### 📄 License
 
-This project is open source and available under the [MIT License.↗]([https://mit-license.org/](https://github.com/nv2105/QuickRAG-FAQ-Bot?tab=MIT-1-ov-file#))
+This project is open source and available under the [MIT License.↗](https://github.com/nv2105/QuickRAG-FAQ-Bot?tab=MIT-1-ov-file)
