@@ -1,40 +1,31 @@
 # src/rag.py
 from embeddings import Embedder
 from db_qdrant import QdrantDB
-from db_local import InMemoryDB
 from config import QDRANT_URL, QDRANT_API_KEY, GROQ_API_KEY
 from typing import List
 import numpy as np
-import os
 
 # Groq client
 from groq import Groq
-from transformers import pipeline
 
 class RAG:
-    def __init__(self, use_qdrant: bool = True, qdrant_collection: str = "quickrag_collection"):
-        # embedder on CPU (safe). You can change device="cuda" if you want and have VRAM.
+    def __init__(self, qdrant_collection: str = "quickrag_collection"):
+        # Embedder on CPU
         self.embedder = Embedder(device="cpu")
-        self.use_qdrant = use_qdrant
-        if use_qdrant:
-            if not QDRANT_URL or not QDRANT_API_KEY:
-                raise ValueError("Qdrant keys not found. Put QDRANT_URL and QDRANT_API_KEY in .env")
-            self.db = QdrantDB(url=QDRANT_URL, api_key=QDRANT_API_KEY, collection_name=qdrant_collection)
-        else:
-            self.db = InMemoryDB()
-
-        # Groq client (if available)
-        self.groq_client = None
-        if GROQ_API_KEY:
-            self.groq_client = Groq(api_key=GROQ_API_KEY)
-
-        # Local fallback generator (small & CPU-friendly)
-        self.local_generator = pipeline("text-generation", model="distilgpt2", device=-1)
+        
+        # Qdrant DB (mandatory)
+        if not QDRANT_URL or not QDRANT_API_KEY:
+            raise ValueError("Qdrant keys not found. Put QDRANT_URL and QDRANT_API_KEY in .env")
+        self.db = QdrantDB(url=QDRANT_URL, api_key=QDRANT_API_KEY, collection_name=qdrant_collection)
+        
+        # Groq client (mandatory)
+        if not GROQ_API_KEY:
+            raise ValueError("GROQ_API_KEY not found; cannot call Groq.")
+        self.groq_client = Groq(api_key=GROQ_API_KEY)
 
     def index(self, docs: List[str], batch_size: int = 64):
         print(f"[RAG] Indexing {len(docs)} docs with batch_size={batch_size}")
         embeddings = self.embedder.embed(docs, batch_size=batch_size)
-        print(f"[RAG] Embeddings shape: {embeddings.shape}")
         self.db.upsert(docs, embeddings)
         print("[RAG] Upsert complete.")
 
@@ -45,9 +36,7 @@ class RAG:
         print(f"[RAG] Retrieved {len(results)} docs.")
         return results
 
-    def generate_with_groq(self, prompt: str, model_name: str = "mixtral-8x7b-instruct"):
-        if not self.groq_client:
-            raise RuntimeError("Groq API key not found; cannot call Groq.")
+    def generate_with_groq(self, prompt: str, model_name: str = "llama-3.1-8b-instant"):
         response = self.groq_client.chat.completions.create(
             model=model_name,
             messages=[
@@ -55,23 +44,15 @@ class RAG:
                 {"role": "user", "content": prompt}
             ]
         )
-        return response.choices[0].message["content"]
+        # Access content via attribute
+        return response.choices[0].message.content
 
-    def generate_local(self, prompt: str, max_new_tokens: int = 150):
-        out = self.local_generator(prompt, max_new_tokens=max_new_tokens)
-        return out[0]["generated_text"]
-
-    def answer(self, query: str, top_k: int = 5, use_groq_if_available: bool = True):
+    def answer(self, query: str, top_k: int = 5, model_name: str = "llama-3.1-8b-instant"):
         print(f"[RAG] Answering query: {query}")
         retrieved = self.retrieve(query, top_k=top_k)
-        print(f"[RAG] Context for answer:")
         for i, doc in enumerate(retrieved):
             print(f"  Doc {i+1}: {doc[:100]} ...")
         context = "\n\n".join(retrieved)
         prompt = f"Context:\n{context}\n\nUser Query: {query}\n\nAnswer concisely and cite which retrieved docs you used."
-        if use_groq_if_available and self.groq_client:
-            print("[RAG] Using Groq for generation.")
-            return self.generate_with_groq(prompt)
-        else:
-            print("[RAG] Using local generator.")
-            return self.generate_local(prompt)
+        print("[RAG] Using Groq for generation.")
+        return self.generate_with_groq(prompt, model_name=model_name)
