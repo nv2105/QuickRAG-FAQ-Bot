@@ -1,15 +1,22 @@
+# src/config.py
+"""
+Configuration loader for environment variables (.env).
+"""
 
 import os
 from dotenv import load_dotenv
 
-load_dotenv()  # reads .env at repo root
+# Load environment variables
+load_dotenv()
 
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Safety checks:
+# Warnings for missing keys
 if not QDRANT_URL:
-	print("Warning: QDRANT_URL not found in .env (you will need it for Qdrant Cloud).")
+    print("[WARN] QDRANT_URL not found in .env (required for Qdrant Cloud).")
+if not QDRANT_API_KEY:
+    print("[WARN] QDRANT_API_KEY not found in .env (required for Qdrant Cloud).")
 if not GROQ_API_KEY:
-	print("Warning: GROQ_API_KEY not found in .env (you'll need it for Groq inference).")
+    print("[WARN] GROQ_API_KEY not found in .env (Groq generation will not work).")
